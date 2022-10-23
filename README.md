@@ -9,4 +9,4 @@
 
 <h1 align="center">ANNOUNCEMENT:</h1>
 
-We recently just received a [https://github.com/github/dmca/blob/master/2022/09/2022-09-21-genshin-impact.md](DMCA) takedown from HoYoverse. Me and Callow have decided to turn the source code for the latest version private and will be available to contributors only. I will only upload stable release on this repo, our [Discord](https://discord.gg/akebi), and [UnknownCheats](https://www.unknowncheats.me/forum/genshin-impact/512860-akebi-genshin-cheat.html). 
+We recently just received a [DMCA](https://github.com/github/dmca/blob/master/2022/09/2022-09-21-genshin-impact.md) takedown from HoYoverse. Me and Callow have decided to turn the source code for the latest version private and will be available to contributors only. I will only upload stable release on this repo, our [Discord](https://discord.gg/akebi), and [UnknownCheats](https://www.unknowncheats.me/forum/genshin-impact/512860-akebi-genshin-cheat.html). 
