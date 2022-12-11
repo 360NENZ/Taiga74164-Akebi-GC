@@ -1088,8 +1088,23 @@ namespace cheat::feature
 			return;
 		}
 
+		auto complete_timestamp = data["complete_timestamp"].get<int64_t>();
+
+		auto current_timestamp = util::GetCurrentTimeMillisec();
+
+		auto& scene = m_ScenesData[labelData->sceneID];
+		if (scene.regenerateTime.count(labelData->id) > 0)
+		{
+			auto regenerateTime = scene.regenerateTime[labelData->id];
+
+			// do not load complete point if resource is regenerated
+			if (complete_timestamp + regenerateTime <= current_timestamp) {
+				return;
+			}
+		}
+
 		point.completed = true;
-		point.completeTimestamp = data["complete_timestamp"];
+		point.completeTimestamp = complete_timestamp;
 		labelData->completedCount++;
 
 		m_CompletedPoints.push_back(&point);
@@ -1366,6 +1381,48 @@ namespace cheat::feature
         newCategory.name = data["name"];
 	}
 
+	void InteractiveMap::LoadRegenrateTimeData(const nlohmann::json& data, uint32_t sceneID)
+	{
+		auto& sceneData = m_ScenesData[sceneID];
+		auto& labels = sceneData.labels;
+		auto& categories = sceneData.categories;
+
+		auto& regenerateTime = sceneData.regenerateTime;
+
+		for (auto& regenerateData : data) {
+			int64_t regenerateTimeInMS = regenerateData["hours"] * 60 * 60 * 1000;
+
+			auto& regenerateCatogories = regenerateData["categories"];
+			auto& regenerateInclude = regenerateData["include"];
+			auto& regenerateExclude = regenerateData["exclude"];
+
+			for (auto& regenerateCategory : regenerateCatogories)
+			{
+				for (auto& category : categories)
+				{
+					if (category.name != regenerateCategory.get<std::string>())
+						continue;
+
+					auto& categoryChildren = category.children;
+
+					for (auto& childLable : categoryChildren)
+					{
+						if (regenerateExclude.find(childLable->id) == regenerateExclude.end())
+						{
+							regenerateTime[childLable->id] = regenerateTimeInMS;
+						}
+					}
+
+					break;
+				}
+			}
+
+			for (auto& includeLabelID : regenerateInclude) {
+				regenerateTime[std::stoi(includeLabelID.get<std::string>())] = regenerateTimeInMS;
+			}
+		}
+	}
+
 	void InteractiveMap::LoadSceneData(const nlohmann::json& data, uint32_t sceneID)
 	{
 		for (auto& [labelID, labelData] : data["labels"].items())
@@ -1377,6 +1434,8 @@ namespace cheat::feature
         {
             LoadCategoriaData(categorie, sceneID);
         }
+
+		LoadRegenrateTimeData(data["regenerates"], sceneID);
 	}
 
 	void InteractiveMap::LoadScenesData()

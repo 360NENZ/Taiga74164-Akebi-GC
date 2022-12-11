@@ -133,6 +133,7 @@ namespace cheat::feature
 			std::map<uint32_t, LabelData> labels;
 			std::map<std::string, LabelData*> nameToLabel;
 			std::vector<CategoryData> categories;
+			std::map<uint32_t, int64_t> regenerateTime;
 		};
 
 		struct MaterialData
@@ -183,6 +184,7 @@ namespace cheat::feature
 		void LoadLabelData(const nlohmann::json& data, uint32_t sceneID, uint32_t labelID);
 		void LoadCategoriaData(const nlohmann::json& data, uint32_t sceneID);
 		void LoadSceneData(const nlohmann::json& data, uint32_t sceneID);
+		void LoadRegenrateTimeData(const nlohmann::json& data, uint32_t sceneID);
 		void LoadScenesData();
 
 		// Parsing ascension materials data
