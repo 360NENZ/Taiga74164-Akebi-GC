@@ -1407,7 +1407,7 @@ namespace cheat::feature
 
 					for (auto& childLable : categoryChildren)
 					{
-						if (regenerateExclude.find(childLable->id) == regenerateExclude.end())
+						if (!regenerateExclude.contains(std::to_string(childLable->id)))
 						{
 							regenerateTime[childLable->id] = regenerateTimeInMS;
 						}
