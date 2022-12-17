@@ -135764,5 +135764,31 @@
         424
       ]
     }
+  ],
+  "regenerates": [
+    {
+      "hours": 12,
+      "categories": [ "Animals", "Materials", "Enemies (Common)" ],
+      "exclude": [ "61", "62", "63" ],
+      "include": []
+    },
+    {
+      "hours": 24,
+      "categories": [ "Enemies (Elite)", "Investigation" ],
+      "exclude": [],
+      "include": [ "172" ]
+    },
+    {
+      "hours": 48,
+      "categories": [ "Local Specialties" ],
+      "exclude": [],
+      "include": [ "61", "62", "63", "15", "139" ]
+    },
+    {
+      "hours": 72,
+      "categories": [ "Fishing" ],
+      "exclude": [],
+      "include": [ "16", "80", "202" ]
+    }
   ]
 }
