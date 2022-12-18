@@ -69,7 +69,10 @@ namespace cheat::feature
 		CreateUserDataField("custom_points", f_CustomPointsJson, f_STCustomPoints.value());
 		CreateUserDataField("completed_points", f_CompletedPointsJson, f_STCompletedPoints.value());
 		CreateUserDataField("fixed_points", f_FixedPointsJson, f_STFixedPoints.value());
+		
+		CreateUserDataField("regenerate_intervals", f_RegenerateIntervalJson, f_RegenerateIntervalJson.value());
 
+		LoadRegenerateIntervals();
 		LoadCustomPoints();
 		LoadCompletedPoints();
 		LoadFixedPoints();
@@ -420,6 +423,8 @@ namespace cheat::feature
 			
 		}
 
+		DrawRegenerateData(sceneID);
+
 		if (searchFixed)
 			ImGui::EndChild();
 	}
@@ -587,6 +592,20 @@ namespace cheat::feature
 				}
 				ImGui::CloseCurrentPopup();
 			}
+			// get current label data
+			auto& category = GetCategoryByLabelID(label.sceneID, label.id);
+
+			auto& categoryRegenerateData = m_ScenesData[label.sceneID].categoryRegenerateData;
+
+			auto& currCategoryRegenerateData = categoryRegenerateData[category.name];
+
+			auto& currLabelRegenerateData = currCategoryRegenerateData.labelIntervals[label.id];
+			if (ImGui::InputInt("Set Regenerate Interval", &currLabelRegenerateData.interval, 1))
+			{
+				if (currLabelRegenerateData.interval < 0) currLabelRegenerateData.interval = 0;
+
+				currLabelRegenerateData.followCategory = currLabelRegenerateData.interval == currCategoryRegenerateData.interval;
+			}
 
 			ImGui::EndPopup();
 		}
@@ -594,6 +613,93 @@ namespace cheat::feature
 
 		IMGUI_TEST_ENGINE_ITEM_INFO(id, label, g.LastItemData.StatusFlags | ImGuiItemStatusFlags_Checkable | (*v ? ImGuiItemStatusFlags_Checked : 0));
 		return;
+	}
+
+	InteractiveMap::CategoryData& InteractiveMap::GetCategoryByLabelID(uint32_t sceneID, uint32_t labelID) 
+	{
+		auto& sceneData = m_ScenesData[sceneID];
+		auto& categories = sceneData.categories;
+
+		for (auto& category : categories) 
+		{
+			for (auto& labelData : category.children)
+			{
+				if (labelData->id == labelID) {
+					return category;
+				}
+			}
+		}
+	}
+
+	void InteractiveMap::DrawRegenerateData(uint32_t sceneID) {
+		auto& sceneData = m_ScenesData[sceneID];
+		auto& categories = sceneData.categories;
+		auto& labels = sceneData.labels;
+		auto& categoryRegenerateData = sceneData.categoryRegenerateData;
+
+		for (auto& [categoryName, categorylabels] : categories) {
+			if (categoryRegenerateData.find(categoryName) == categoryRegenerateData.end()) 
+			{
+				auto& categoryData = categoryRegenerateData[categoryName];
+
+				categoryData.name = categoryName;
+				categoryData.interval = 0;
+
+				for (auto& labelData : categorylabels) {
+					// child label interval follow category interval by default
+					categoryData.labelIntervals[labelData->id] = {
+						labelData->id,
+						categoryData.interval,
+						true,
+					};
+				}
+			}
+			auto& categoryData = categoryRegenerateData[categoryName];
+
+			if (
+				TypeWidget(
+					categoryName.c_str(), 
+					categoryData.interval, 
+					1, 0, 7 * 24, 
+					"Set regenerate interval for current category"
+				)
+			) 
+			{
+				if (categoryData.interval < 0) categoryData.interval = 0;
+
+				for (auto& [labelID, labelRegenerateData] : categoryData.labelIntervals)
+					if (labelRegenerateData.followCategory)
+						labelRegenerateData.interval = categoryData.interval;
+
+				SaveRegenerateIntervals();
+			}
+			
+			if (categoryData.labelIntervals.size() == 0) continue;
+
+			for (auto& [labelID, labelInterval] : categoryData.labelIntervals) {
+				if (labels.find(labelID) == labels.end()) continue;
+				// only render special points
+				if (labelInterval.followCategory) continue;
+
+				auto& labelData = labels[labelID];
+
+				if (
+					TypeWidget(
+						labelData.name.c_str(), 
+						labelInterval.interval, 
+						1, 0, 7 * 24, 
+						"Set regenerate interval for current material"
+					)
+				)
+				{
+					if (labelInterval.interval < 0) labelInterval.interval = 0;
+
+					labelInterval.followCategory = labelInterval.interval == categoryData.interval;
+
+					SaveRegenerateIntervals();
+				}
+			}
+		}
 	}
 
 	InteractiveMap& InteractiveMap::GetInstance()
@@ -1092,15 +1198,26 @@ namespace cheat::feature
 
 		auto current_timestamp = util::GetCurrentTimeMillisec();
 
-		auto& scene = m_ScenesData[labelData->sceneID];
-		if (scene.regenerateTime.count(labelData->id) > 0)
-		{
-			auto regenerateTime = scene.regenerateTime[labelData->id];
+		auto& sceneData = m_ScenesData[labelData->sceneID];
 
-			// do not load complete point if resource is regenerated
-			if (complete_timestamp + regenerateTime <= current_timestamp) {
-				return;
-			}
+		auto& category = GetCategoryByLabelID(labelData->sceneID, labelData->id);
+
+		auto& categoryRegenerateInterval = sceneData.categoryRegenerateData[category.name];
+
+		int interval = 0;
+
+		if (categoryRegenerateInterval.labelIntervals.count(labelData->id) != 0)
+		{
+			interval = categoryRegenerateInterval.labelIntervals[labelData->id].interval;
+		}
+		else if (categoryRegenerateInterval.interval != 0)
+		{
+			interval = categoryRegenerateInterval.interval;
+		}
+		
+		if (interval != 0 && complete_timestamp + interval * 60 * 60 * 1000 <= current_timestamp)
+		{
+			return;
 		}
 
 		point.completed = true;
@@ -1165,6 +1282,8 @@ namespace cheat::feature
 
 		data = jRoot;
 	}
+
+
 
 	void InteractiveMap::SaveCustomPointData(nlohmann::json& jObject, PointData* point)
 	{
@@ -1259,6 +1378,111 @@ namespace cheat::feature
 	{
 		ResetUserData(&InteractiveMap::ResetFixedPointData);
 		m_FixedPoints.clear();
+	}
+
+	void InteractiveMap::LoadCategoryRegenerateInterval(CategoryRegenerateIntervalData& category, const nlohmann::json& data)
+	{
+		category.name = data["name"];
+		category.interval = data["interval"].get<int>();
+		auto& labelDataContainer = data["labels"];
+		for (auto& [labelIDStr, labelData] : labelDataContainer.items())
+		{
+			auto labelID = std::stoul(labelIDStr);
+			auto& label = category.labelIntervals[labelID];
+
+			label.id = labelID;
+			label.followCategory = false;
+			label.interval = labelData["interval"].get<int>();
+		}
+	}
+
+	void InteractiveMap::LoadRegenerateIntervals()
+	{
+		for (auto& [sceneIDStr, categoryContainer] : f_RegenerateIntervalJson.value().items())
+		{
+			auto sceneID = std::stoul(sceneIDStr);
+			if (m_ScenesData.count(sceneID) == 0)
+			{
+				LOG_WARNING("Scene %u don't exist. Maybe map data was updated.", sceneID);
+				continue;
+			}
+
+			auto& categoryRegenerateInterval = m_ScenesData[sceneID].categoryRegenerateData;
+
+			for (auto& [categoryName, categoryData] : categoryContainer.items())
+			{
+				auto& currCategory = categoryRegenerateInterval[categoryName];
+
+				LoadCategoryRegenerateInterval(currCategory, categoryData);
+			}
+		}
+	}
+
+	void InteractiveMap::SaveCategoryRegenerateInterval(nlohmann::json& jObject, CategoryRegenerateIntervalData& category)
+	{
+		jObject["name"] = category.name;
+		jObject["interval"] = category.interval;
+		jObject["labels"] = nlohmann::json::object();
+
+		auto& labels = jObject["labels"];
+
+		for (auto& [labelID, labelIntervalData] : category.labelIntervals)
+		{
+			if (labelIntervalData.followCategory) continue;
+
+			std::string labelIDStr = std::to_string(labelID);
+
+			labels[labelIDStr] = nlohmann::json::object();
+			auto& labelObject = labels[labelIDStr];
+
+			labelObject["id"] = labelID;
+			labelObject["interval"] = labelIntervalData.interval;
+		}
+	}
+
+	void InteractiveMap::SaveRegenerateIntervals()
+	{
+		nlohmann::json jRoot = {};
+
+		for (auto& [sceneID, sceneData] : m_ScenesData)
+		{
+			auto sceneIDStr = std::to_string(sceneID);
+
+			jRoot[sceneIDStr] = nlohmann::json::object();
+
+			auto& sceneCategoryRoot = jRoot[sceneIDStr];
+
+			auto& categoryRegenerateData = sceneData.categoryRegenerateData;
+
+			for (auto& [categoryName, category] : categoryRegenerateData)
+			{
+				if (category.interval == 0) continue;
+
+				sceneCategoryRoot[categoryName] = nlohmann::json::object();
+
+				auto& categoryRoot = sceneCategoryRoot[categoryName];
+
+				SaveCategoryRegenerateInterval(categoryRoot, category);
+			}
+		}
+		
+		f_RegenerateIntervalJson = jRoot;
+		f_RegenerateIntervalJson.FireChanged();
+	}
+
+	void InteractiveMap::ResetRegenerateIntervals()
+	{
+		for (auto& [sceneID, sceneData] : m_ScenesData)
+		{
+			auto& categoryRegenerateData = sceneData.categoryRegenerateData;
+
+			for (auto& [categoryName, categoryData] : categoryRegenerateData)
+			{
+				categoryData.interval = 0;
+				categoryData.labelIntervals.clear();
+			}
+		}
+		
 	}
 
 	void InteractiveMap::CreateUserDataField(const char* name, config::Field<nlohmann::json>& field, SaveAttachType saveType)
@@ -1381,48 +1605,6 @@ namespace cheat::feature
         newCategory.name = data["name"];
 	}
 
-	void InteractiveMap::LoadRegenrateTimeData(const nlohmann::json& data, uint32_t sceneID)
-	{
-		auto& sceneData = m_ScenesData[sceneID];
-		auto& labels = sceneData.labels;
-		auto& categories = sceneData.categories;
-
-		auto& regenerateTime = sceneData.regenerateTime;
-
-		for (auto& regenerateData : data) {
-			int64_t regenerateTimeInMS = regenerateData["hours"] * 60 * 60 * 1000;
-
-			auto& regenerateCatogories = regenerateData["categories"];
-			auto& regenerateInclude = regenerateData["include"];
-			auto& regenerateExclude = regenerateData["exclude"];
-
-			for (auto& regenerateCategory : regenerateCatogories)
-			{
-				for (auto& category : categories)
-				{
-					if (category.name != regenerateCategory.get<std::string>())
-						continue;
-
-					auto& categoryChildren = category.children;
-
-					for (auto& childLable : categoryChildren)
-					{
-						if (!regenerateExclude.contains(std::to_string(childLable->id)))
-						{
-							regenerateTime[childLable->id] = regenerateTimeInMS;
-						}
-					}
-
-					break;
-				}
-			}
-
-			for (auto& includeLabelID : regenerateInclude) {
-				regenerateTime[std::stoi(includeLabelID.get<std::string>())] = regenerateTimeInMS;
-			}
-		}
-	}
-
 	void InteractiveMap::LoadSceneData(const nlohmann::json& data, uint32_t sceneID)
 	{
 		for (auto& [labelID, labelData] : data["labels"].items())
@@ -1434,8 +1616,6 @@ namespace cheat::feature
         {
             LoadCategoriaData(categorie, sceneID);
         }
-
-		LoadRegenrateTimeData(data["regenerates"], sceneID);
 	}
 
 	void InteractiveMap::LoadScenesData()

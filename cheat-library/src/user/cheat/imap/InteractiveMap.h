@@ -128,12 +128,25 @@ namespace cheat::feature
 			std::vector<LabelData*> children;
 		};
 
+		struct LabelRegenerateIntervalData {
+			uint32_t id;
+			int interval;
+			bool followCategory;
+		};
+
+		struct CategoryRegenerateIntervalData {
+			std::string name;
+			int interval;
+			std::map<uint32_t, LabelRegenerateIntervalData> labelIntervals;
+		};
+
 		struct SceneData
 		{
 			std::map<uint32_t, LabelData> labels;
 			std::map<std::string, LabelData*> nameToLabel;
 			std::vector<CategoryData> categories;
-			std::map<uint32_t, int64_t> regenerateTime;
+
+			std::map<std::string, CategoryRegenerateIntervalData> categoryRegenerateData;
 		};
 
 		struct MaterialData
@@ -165,6 +178,7 @@ namespace cheat::feature
 		config::Field<nlohmann::json> f_CustomPointsJson;
 		config::Field<nlohmann::json> f_FixedPointsJson;
 		config::Field<nlohmann::json> f_CompletedPointsJson;
+		config::Field<nlohmann::json> f_RegenerateIntervalJson;
 		
 		config::Field<uint32_t> f_CustomPointIndex; // Stores last index for new custom points
 		config::Field<uint32_t> f_LastUserID;
@@ -184,7 +198,6 @@ namespace cheat::feature
 		void LoadLabelData(const nlohmann::json& data, uint32_t sceneID, uint32_t labelID);
 		void LoadCategoriaData(const nlohmann::json& data, uint32_t sceneID);
 		void LoadSceneData(const nlohmann::json& data, uint32_t sceneID);
-		void LoadRegenrateTimeData(const nlohmann::json& data, uint32_t sceneID);
 		void LoadScenesData();
 
 		// Parsing ascension materials data
@@ -222,6 +235,9 @@ namespace cheat::feature
 		void SaveFixedPointData(nlohmann::json& jObject, PointData* point);
 		bool ResetFixedPointData(LabelData* label, PointData* point);
 
+		void LoadCategoryRegenerateInterval(CategoryRegenerateIntervalData& category, const nlohmann::json& data);
+		void SaveCategoryRegenerateInterval(nlohmann::json& jObject, CategoryRegenerateIntervalData& category);
+
 		void LoadCompletedPoints();
 		void SaveCompletedPoints();
 		void ResetCompletedPoints();
@@ -233,6 +249,10 @@ namespace cheat::feature
 		void LoadFixedPoints();
 		void SaveFixedPoints();
 		void ResetFixedPoints();
+
+		void LoadRegenerateIntervals();
+		void SaveRegenerateIntervals();
+		void ResetRegenerateIntervals();
 
 		void CreateUserDataField(const char* name, config::Field<nlohmann::json>& field, SaveAttachType saveType);
 		void UpdateUserDataField(config::Field<nlohmann::json>& field, SaveAttachType saveType, bool move = false);
@@ -254,6 +274,8 @@ namespace cheat::feature
 		void DrawPoints();
 
 		void DrawMinimapPoints();
+
+		void DrawRegenerateData(uint32_t sceneID);
 		
 		// Block interact
 		void OnWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, bool& cancelled);
@@ -266,6 +288,8 @@ namespace cheat::feature
 		// Utility
 		static PointData* FindNearestPoint(const LabelData& label, const app::Vector2& levelPosition, float range = 0.0f, bool completed = false);
 		std::vector<InteractiveMap::LabelData*> FindLabelsByClearName(const std::string& clearName);
+
+		CategoryData& GetCategoryByLabelID(uint32_t sceneID, uint32_t labelID);
 
 		// Hooks
 		static void GadgetModule_OnGadgetInteractRsp_Hook(void* __this, app::GadgetInteractRsp* notify, MethodInfo* method);
